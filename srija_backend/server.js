@@ -1,36 +1,45 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import express from "express";
-import cors from "cors"; // ✅ import cors
-import notesroutes from "./routes/notesroutes.js";
+import cors from "cors";
+import dotenv from "dotenv";
+import path from "path";
+
+import notesRoutes from "./routes/notesRoutes.js";
 import { connectDB } from "./config/db.js";
+import rateLimiter from "./middleware/rateLimiter.js";
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const __dirname = path.resolve();
 
-// ✅ CORS MUST COME FIRST
-app.use(cors({
-  origin: "http://localhost:5173", // frontend URL
-}));
+// middleware
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+  cors({
+    origin: "http://localhost:5173"}));
+}
+app.use(express.json()); // this middleware will parse JSON bodies: req.body
+app.use(rateLimiter);
 
-app.use(express.json());
+// our simple custom middleware
+// app.use((req, res, next) => {
+//   console.log(`Req method is ${req.method} & Req URL is ${req.url}`);
+//   next();
+// });
 
-// Routes
-app.use("/api/notes", notesroutes);
+app.use("/api/notes", notesRoutes);
 
-// Start server
-const startServer = async () => {
-  try {
-    await connectDB();
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../srija_frontend/dist")));
 
-    app.listen(PORT, "127.0.0.1", () => {
-      console.log(`Server running on http://127.0.0.1:${PORT}`);
-    });
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../srija_frontend", "dist", "index.html"));
+  });
+}
 
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-startServer();
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log("Server started on PORT:", PORT);
+  });
+});
